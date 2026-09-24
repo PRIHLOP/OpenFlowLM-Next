@@ -51,4 +51,9 @@ Activate the ironvenv/bin/activate; use source utilities/mlir-aie/utils/env_setu
     <description>Build and validate layer_x Q4 projection probes at K5120/K6144 using depth-two streamed xn/xm inputs and actual main-core scratch.</description>
     <location>.opencode/skill/open-dense-activation-stream/SKILL.md</location>
   </skill>
+  <skill>
+    <name>open-segmented-dense</name>
+    <description>Build and validate segmented dense Q4 down GEMV at K17408, segment-major DMA and local accumulation, including the remaining full-FFN bf16 rounding accuracy gate.</description>
+    <location>.opencode/skill/open-segmented-dense/SKILL.md</location>
+  </skill>
 </available_skills>

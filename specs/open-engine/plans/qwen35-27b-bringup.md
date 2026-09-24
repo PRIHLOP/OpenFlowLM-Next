@@ -7,7 +7,9 @@ model-only ordering. Current work is shared WideDeltaNet (Track A), then
 Qwen3.8-27B (B), then Flash-Next/qwen4exp (C). Current results and next steps
 are in [wide-deltanet-bringup.md](wide-deltanet-bringup.md), the
 [A7 chain report](wide-deltanet-a7.md), and the
-[Track B dense input report](dense-wide-input.md). The phase notes below are
+[Track B dense input report](dense-wide-input.md), and
+[segmented FFN report](segmented-dense-ffn.md). Segmented down passes hardware
+comparison; full FFN still has an open strict numerical gate. The phase notes below are
 historical; the toolchain is installed, the synthetic A7 chain passes inherited
 whole-tensor gates, and Q4 projections at K5120/K6144 pass hardware comparison.
 

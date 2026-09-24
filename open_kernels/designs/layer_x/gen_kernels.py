@@ -92,6 +92,7 @@ def mixed(R) -> bool:
 # translation-unit set (and its build key) never gains a file it does not compile.
 Q8_FILES = ("gemv_q8_gy.cc", "gemv_q8_gms.cc")
 FOLD_FILES = ("gemv_q4_gyms.cc",)
+SEGMENT_FILES = ("dense_down_acc.cc", "dense_down_out.cc")
 
 
 DNX = {
@@ -216,6 +217,29 @@ void dense_prep_f32(const bfloat16 *__restrict e, uint8_t *__restrict tab, int32
 }
 ''',
     }
+    if F.DOWN_SEGMENTS:
+        out["dense_down_acc.cc"] = '''// Accumulate a finished Q4 segment band in dead DeltaNet scratch.
+#include "vecmath.h"
+extern "C" {
+void dense_down_acc(const float *__restrict ms, float *__restrict ds, int32_t band, int32_t first) {
+  float *dst = ds + 64 * band;
+#pragma clang loop unroll(disable)
+  for (unsigned j = 0; j < 64; j += 32) {
+    auto v = aie::load_v<32>(ms + j);
+    if (!first) v = fadd32(aie::load_v<32>(dst + j), v);
+    aie::store_v(dst + j, v);
+  }
+}
+}
+'''
+        out["dense_down_out.cc"] = '''#include "vecmath.h"
+extern "C" {
+void dense_down_out(const float *__restrict ds, float *__restrict y, int32_t band) {
+  aie::store_v(y, aie::load_v<32>(ds + 64 * band));
+  aie::store_v(y + 32, aie::load_v<32>(ds + 64 * band + 32));
+}
+}
+'''
     if mixed(R):
         # The mixed-format core cannot hold both q4_1 entries beside the q8 body, so the
         # pair becomes one folded entry with a runtime destination. Nothing else moves.
@@ -411,7 +435,7 @@ def generate(R, out: Path = HERE) -> int:
         p = out / name
         if not p.is_file() or p.read_text(encoding="utf-8") != src:
             p.write_text(src, encoding="utf-8", newline="\n")
-    gone = list(STALE) + [n for n in Q8_FILES + FOLD_FILES if n not in fs]
+    gone = list(STALE) + [n for n in Q8_FILES + FOLD_FILES + SEGMENT_FILES if n not in fs]
     if mixed(R):                      # the folded entry replaces the pair on disk too
         gone += [n for n in ("gemv_q4_gy.cc", "gemv_q4_gms.cc") if n not in fs]
     for name in gone:

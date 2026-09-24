@@ -1176,6 +1176,15 @@ layout `glue_ab` reads. Images are refused as on the other VLM families.
   buffers plus stack occupy59392 B/core. FFN xm has unit/IR coverage only;
   whole-layer placement still hits the fused glue DMA limit. See the
   [wide input report](plans/dense-wide-input.md). No catalogue promotion.
+- **Segmented dense down.** When a full FFN table cannot fit L1 even with
+  one-chunk weight elements, the dense composition uses8192-wide segments.
+  H5120/FF17408 uses8192+8192+1024, segment-major across all output bands,
+  slicing the original Q4 pool and retaining partials in reusable ds scratch.
+  Partial/final down comparisons pass44 hardware gates. The full FFN runs but
+  one synthetic output fails the strict1e-4 relative gate (1.123084e-4), localized
+  to upstream h differences crossing bf16 rounding boundaries. Segmented FFN
+  therefore remains behind `OPEN_KERNELS_UNVALIDATED`; mixed Q8 is unimplemented.
+  See [segmented FFN report](plans/segmented-dense-ffn.md). No model/catalogue promotion.
 
 **Procedure (manual):** as OPEN-FAMILY-QWEN36MOE with `Qwen3.8-Distilled-9B-NPU2`,
 `out_q35`, an 8-layer slice (six linear, two full), 3 greedy tokens from `[248045]`;
