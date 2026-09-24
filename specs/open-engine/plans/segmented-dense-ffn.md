@@ -1,5 +1,9 @@
 # Segmented dense FFN — 2026-09-24
 
+Historical stage results below. The subsequent
+[precision stage](dense-ffn-precision.md) resolves the reported full-FFN failure
+and passes13 synthetic inputs with and without up/gate tracing.
+
 Based on `51ba7f6`, Track B B2–B4 implementation and down-projection validation.
 **Segmented down passes hardware comparison. Full FFN end-to-end acceptance
 remains open:** one synthetic output has normalized error1.123084e-4 against

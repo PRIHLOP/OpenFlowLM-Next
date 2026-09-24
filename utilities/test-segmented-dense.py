@@ -36,6 +36,8 @@ def prepare(out):
     tool = json.loads((out / 'probe-toolchain.json').read_text())
     l, f = Q.layout(spec), Q.ffn_geometry(spec)
     full = tool['scope'] == 'ffn'
+    trace = full and tool.get('trace', False)
+    extra_buffer = tool.get('buffer_args', 3 if trace else 2) == 3
     snapshots = len(f.DOWN_SEGMENTS) if not full and not tool['final_only'] else 1
     act_bytes = max(l.A_BYTES, l.A_OUT2 + spec.hidden * 4 * len(f.DOWN_SEGMENTS))
     rng = np.random.default_rng(38417)
@@ -53,10 +55,22 @@ def prepare(out):
         up, gate = weights(k, n), weights(k, n)
         pool[l.POOL_FFN_UP:l.POOL_FFN_UP + len(up)] = up
         pool[l.POOL_FFN_GATE:l.POOL_FFN_GATE + len(gate)] = gate
+        # Keep the original two inputs and weights unchanged, then broaden the
+        # suite using the RNG state AFTER weight generation.
+        extra = list(rng.normal(0, .6, (4, n)).astype(bfloat16))
+        extra += [np.zeros(n, bfloat16), np.ones(n, bfloat16), -np.ones(n, bfloat16)]
+        for index in (2047, 2048, n - 1):
+            x = np.zeros(n, bfloat16)
+            x[index] = 1
+            extra.append(x)
+        inputs = np.concatenate([inputs, np.array(extra), inputs[:1]])
         u, g = reference(up, inputs, k, n)[:, 0], reference(gate, inputs, k, n)[:, 0]
         h = (u.astype(np.float64) * g / (1 + np.exp(-g.astype(np.float64)))).astype(np.float32)
         refs = reference(down, h, n, k)[:, -1:]
         for i in range(len(inputs)):
+            if trace:
+                u[i].tofile(out / f'uref{i}.bin')
+                g[i].tofile(out / f'gref{i}.bin')
             h[i].tofile(out / f'href{i}.bin')
     else:
         inputs = list(rng.normal(0, .6, (2, k)).astype(np.float32))
@@ -76,6 +90,10 @@ def prepare(out):
     del pool
     cfg = ['device', 'xclbin p final.xclbin', 'kernelx p p insts.bin',
            f'buf w {l.POOL_BYTES} pool.bin', f'buf a {act_bytes + len(GUARD)}']
+    trace_bytes = (2 * k if trace else 1) * 4
+    if extra_buffer:
+        (out / 'trace-poison.bin').write_bytes(np.full(trace_bytes // 4, np.nan, np.float32).tobytes() + GUARD)
+        cfg += [f'buf t {trace_bytes + len(GUARD)}']
     for i, x in enumerate(inputs):
         raw = bytearray(np.full(act_bytes // 4, np.nan, np.float32).tobytes() + GUARD)
         pos = l.A_XM if full else l.A_H
@@ -83,14 +101,22 @@ def prepare(out):
         raw[pos:pos + len(data)] = data
         (out / f'act{i}.bin').write_bytes(raw)
         refs[i].tofile(out / f'ref{i}.bin')
-        cfg += [f'load a act{i}.bin', 'run p w a', f'dump a got{i}.bin {len(raw)}']
+        cfg += [f'load a act{i}.bin']
+        if extra_buffer:
+            cfg += ['load t trace-poison.bin']
+        cfg += ['run p w a' + (' t' if extra_buffer else ''), f'dump a got{i}.bin {len(raw)}']
+        if trace:
+            cfg += [f'dump t trace{i}.bin {trace_bytes + len(GUARD)}']
+            (out / f'trace{i}.bin').unlink(missing_ok=True)
         (out / f'got{i}.bin').unlink(missing_ok=True)
     (out / 'segmented.cfg').write_text('\n'.join(cfg) + '\n')
     files = ['final.xclbin', 'insts.bin', 'pool.bin', 'segmented.cfg']
     files += [f'{prefix}{i}.bin' for i in range(len(inputs)) for prefix in ('act', 'ref')]
     if full:
         files += [f'href{i}.bin' for i in range(len(inputs))]
-    meta = dict(k=k, n=n, inputs=len(inputs), full=full, snapshots=snapshots,
+    if trace:
+        files += [f'{prefix}{i}.bin' for i in range(len(inputs)) for prefix in ('uref', 'gref')]
+    meta = dict(k=k, n=n, inputs=len(inputs), full=full, trace=trace, repeated_last=True, snapshots=snapshots,
                 act_bytes=act_bytes, out_offset=l.A_OUT2, h_offset=l.A_H, seed=38417,
                 sha256={name: digest(out / name) for name in files})
     (out / 'segmented-fixture.json').write_text(json.dumps(meta, indent=2) + '\n')
@@ -127,6 +153,16 @@ def compare(out):
             h = np.frombuffer(raw, np.float32, count=meta['k'], offset=meta['h_offset'])
             href = np.fromfile(out / f'href{i}.bin', np.float32)
             results.append(dict(input=i, tensor='h', **metric(h, href, .9999999)))
+            if meta.get('trace'):
+                traw = (out / f'trace{i}.bin').read_bytes()
+                if len(traw) != meta['k'] * 8 + len(GUARD) or traw[-len(GUARD):] != GUARD:
+                    raise ValueError('invalid up/gate trace length or canary')
+                t = np.frombuffer(traw[:-len(GUARD)], np.float32).reshape(-1, 2, 64)
+                u, g = t[:, 0, :].ravel(), t[:, 1, :].ravel()
+                for name, value in [('u', u), ('g', g)]:
+                    results.append(dict(input=i, tensor=name, **metric(value, np.fromfile(out / f'{name}ref{i}.bin', np.float32), .9999999)))
+                local_h = (u.astype(np.float64) * g / (1 + np.exp(-g.astype(np.float64)))).astype(np.float32)
+                diagnostics.append(dict(input=i, h_from_device_up_gate=metric(h, local_h, .9999999)))
             # Localize errors without replacing the end-to-end acceptance above.
             local = reference(down, h[None, :], meta['n'], meta['k'])[0, 0]
             rounded, rounded_ref = h.astype(bfloat16), href.astype(bfloat16)
@@ -136,7 +172,7 @@ def compare(out):
                                     first_differences=[dict(index=int(j), got=float(h[j]), ref=float(href[j]),
                                                             got_bf16=float(rounded[j]), ref_bf16=float(rounded_ref[j]))
                                                        for j in different[:8]]))
-    if not meta['full']:
+    if not meta['full'] or meta.get('repeated_last'):
         first, last = [(out / f'got{i}.bin').read_bytes() for i in (0, meta['inputs'] - 1)]
         start, size = meta['out_offset'], meta['snapshots'] * meta['n'] * 4
         if first[start:start + size] != last[start:start + size]:

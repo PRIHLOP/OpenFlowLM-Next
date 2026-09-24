@@ -56,4 +56,9 @@ Activate the ironvenv/bin/activate; use source utilities/mlir-aie/utils/env_setu
     <description>Build and validate segmented dense Q4 down GEMV at K17408, segment-major DMA and local accumulation, including the remaining full-FFN bf16 rounding accuracy gate.</description>
     <location>.opencode/skill/open-segmented-dense/SKILL.md</location>
   </skill>
+  <skill>
+    <name>open-dense-ffn-precision</name>
+    <description>Reproduce the strict synthetic FFN accuracy gate with up/gate traces, precise vector SiLU, and scale-invariant cosine for tiny tensors.</description>
+    <location>.opencode/skill/open-dense-ffn-precision/SKILL.md</location>
+  </skill>
 </available_skills>

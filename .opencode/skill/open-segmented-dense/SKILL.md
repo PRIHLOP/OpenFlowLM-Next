@@ -29,13 +29,12 @@ are ignored. `down` emits snapshots after K8192,16384,17408; `down_final` uses
 the production emission order. `ffn` runs actual up/gate/SiLU/down, without norm,
 attention or DeltaNet. It uses the real model geometry and synthetic Q4 weights.
 
-The **full FFN comparison currently exits nonzero**: one of two final outputs
-exceeds the unchanged1e-4 relative threshold (1.123084e-4). Intermediate h passes,
-but small differences cross bf16 rounding boundaries before down. Diagnostics
-compare down against the device-produced h separately; those pass and must not
-replace the failing end-to-end gate. Details and hashes are in
-`specs/open-engine/plans/segmented-dense-ffn.md`. Do not promote this recipe or
-claim model/full-FFN correctness until the strict gate is resolved.
+The initial full FFN comparison failed at1.123084e-4 against the unchanged1e-4
+threshold. This was subsequently resolved by precise vector activation math;
+see `.opencode/skill/open-dense-ffn-precision/SKILL.md` for the13-input gate and
+up/gate traces. Keep device-h-based diagnostics separate from end-to-end
+acceptance. Initial evidence is in `specs/open-engine/plans/segmented-dense-ffn.md`.
+Whole-layer/model correctness and catalogue promotion remain pending.
 
 ## Implementation constraints
 
@@ -51,7 +50,7 @@ claim model/full-FFN correctness until the strict gate is resolved.
 - Drain before filling weights; pace weight DMA with Pipeline(3) and finish
   each segment's input transfers before proceeding. A physical queue holds4 BDs.
 - Actual buffers+stack:59392 B/core. ELF text:6976 B diagnostic down,6064 B final
-  down,11296 B full FFN. These figures do not establish whole-layer text size.
+  down,11712 B precise full FFN. These figures do not establish whole-layer text size.
 - Mixed Q8 is explicitly unimplemented for this capability. Recipe acceptance
   requires `OPEN_KERNELS_UNVALIDATED=1`; fused wide glue remains separately gated.
 

@@ -74,7 +74,7 @@ def _check(spec: ModelSpec) -> None:
     pc = per_call(spec, FFN)
     parts = M.dense_segments(spec)
     if parts and os.environ.get("OPEN_KERNELS_UNVALIDATED") != "1":
-        raise OpRangeError("qwen35: segmented FFN is not yet validated end-to-end; "
+        raise OpRangeError("qwen35: segmented FFN whole-layer integration is not yet validated; "
                            "use OPEN_KERNELS_UNVALIDATED=1 for diagnostic builds only")
     require("ln", width=spec.hidden)
     require("lm_head_q8", K=spec.hidden, vocab=spec.vocab)
