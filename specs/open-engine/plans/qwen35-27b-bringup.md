@@ -9,7 +9,8 @@ are in [wide-deltanet-bringup.md](wide-deltanet-bringup.md), the
 [A7 chain report](wide-deltanet-a7.md), and the
 [Track B dense input report](dense-wide-input.md), and
 [segmented FFN report](segmented-dense-ffn.md), followed by the
-[precision fix](dense-ffn-precision.md). Segmented down and the synthetic full
+[precision fix](dense-ffn-precision.md), and the
+[standalone LN5120 validation](wide-ln.md) (2026-09-25). Segmented down and the synthetic full
 FFN pass strict hardware comparison; whole-layer validation is pending. The phase notes below are
 historical; the toolchain is installed, the synthetic A7 chain passes inherited
 whole-tensor gates, and Q4 projections at K5120/K6144 pass hardware comparison.

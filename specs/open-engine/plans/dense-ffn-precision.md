@@ -130,6 +130,10 @@ Final xclbin SHA256:
 - FFN: `7f33a0a2f66c31e32bcf0effc25f01ef233e15dbad8b606ad7e757d617d193a3`
 - trace: `3db820efc3a5db27c7e7fa7952ecac2462738a20e4801bdd9071d5d5786ebf16`
 
+2026-09-25 follow-up: [standalone LN5120](wide-ln.md) now passes hardware
+comparison after fixing its input-buffer allocation. This does not fix the
+norm embedded in the full layer.
+
 Next: integrate the separate AB/conv/recurrence chain, validate remaining
 LN/LM-head/attention points and measure full-layer program placement before
 real layer,8-layer slice and64-layer model comparisons. The known fused-glue
