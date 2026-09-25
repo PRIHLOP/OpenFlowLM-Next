@@ -81,4 +81,9 @@ Activate the ironvenv/bin/activate; use source utilities/mlir-aie/utils/env_setu
     <description>Build and debug the complete synthetic H5120/FF17408 DeltaNet layer, padded state adapters and remaining full-layer precision failure.</description>
     <location>.opencode/skill/open-wide-deltanet-layer/SKILL.md</location>
   </skill>
+  <skill>
+    <name>qwen38-upstream-regression</name>
+    <description>Reproduce upstream compatibility checks: rebuilt Q4 projections/FFN, Linux runtime, converter and isolated PR branches.</description>
+    <location>.opencode/skill/qwen38-upstream-regression/SKILL.md</location>
+  </skill>
 </available_skills>
